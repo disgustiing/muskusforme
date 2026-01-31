@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Twitch Stream Notifier",
+  "version": "1.0",
+  "description": "Уведомления о начале стрима через Telegram",
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "permissions": [
+    "storage"
+  ]
+}
