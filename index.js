@@ -5,8 +5,8 @@ const axios = require("axios");
 const app = express();
 app.use(express.json());
 
+// 🔑 Используем порт из переменной окружения Railway
 const PORT = process.env.PORT || 3000;
-
 const STREAMERS_FILE = "./streamers.json";
 
 // ====== helpers ======
@@ -51,9 +51,12 @@ app.post("/subscribe", (req, res) => {
   res.json({ ok: true, streamers: current });
 });
 
+// ====== DEBUG: лог старта ======
+console.log("=== APP START ===");
+console.log("NODE_ENV:", process.env.NODE_ENV);
+console.log("PORT:", PORT);
+
 // ====== start ======
 app.listen(PORT, () => {
   console.log("Server started on port", PORT);
 });
-
-
