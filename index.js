@@ -57,6 +57,9 @@ console.log("NODE_ENV:", process.env.NODE_ENV);
 console.log("PORT:", PORT);
 
 // ====== start ======
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log("Server started on port", PORT);
 });
+console.log("Server listening on all interfaces at port", PORT);
+
+
