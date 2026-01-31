@@ -5,7 +5,8 @@ const axios = require("axios");
 const app = express();
 app.use(express.json());
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
+
 const STREAMERS_FILE = "./streamers.json";
 
 // ====== helpers ======
@@ -54,3 +55,5 @@ app.post("/subscribe", (req, res) => {
 app.listen(PORT, () => {
   console.log("Server started on port", PORT);
 });
+
+
