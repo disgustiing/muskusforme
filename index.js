@@ -1,56 +1,105 @@
 const express = require("express");
-const fs = require("fs");
 const axios = require("axios");
+require("dotenv").config();
 
 const app = express();
-app.use(express.json());
+const PORT = process.env.PORT || 3000;
 
-const PORT = 3000;
-const STREAMERS_FILE = "./streamers.json";
+// ===== НАСТРОЙКИ =====
+const STREAMERS = ["raidstacija0904", "66petarda_rus"];
+const CHECK_INTERVAL = 60 * 1000;
 
-// ====== helpers ======
-function loadStreamers() {
-  if (!fs.existsSync(STREAMERS_FILE)) return [];
-  return JSON.parse(fs.readFileSync(STREAMERS_FILE, "utf-8"));
+// ===== ENV =====
+const {
+  TWITCH_CLIENT_ID,
+  TWITCH_CLIENT_SECRET,
+  TELEGRAM_BOT_TOKEN,
+  TELEGRAM_CHAT_ID,
+} = process.env;
+
+// ===== ПРОВЕРКИ =====
+if (!TWITCH_CLIENT_ID || !TWITCH_CLIENT_SECRET) {
+  console.error("❌ Twitch env не заданы");
+  process.exit(1);
 }
 
-function saveStreamers(list) {
-  fs.writeFileSync(STREAMERS_FILE, JSON.stringify(list, null, 2));
+if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+  console.error("❌ Telegram env не заданы");
+  process.exit(1);
 }
 
-// ====== routes ======
-app.get("/", (req, res) => {
-  res.send("Twitch watcher is alive 🚀");
-});
+// ===== TWITCH TOKEN =====
+let twitchToken = null;
 
-app.get("/streamers", (req, res) => {
-  res.json(loadStreamers());
-});
-
-app.post("/subscribe", (req, res) => {
-  const { streamers, telegramId } = req.body;
-
-  if (!Array.isArray(streamers) || !telegramId) {
-    return res.status(400).json({ error: "Bad data" });
-  }
-
-  const current = loadStreamers();
-
-  streamers.forEach(name => {
-    if (!current.find(s => s.name === name)) {
-      current.push({
-        name,
-        telegramId,
-        live: false
-      });
+async function getTwitchToken() {
+  const r = await axios.post(
+    "https://id.twitch.tv/oauth2/token",
+    null,
+    {
+      params: {
+        client_id: TWITCH_CLIENT_ID,
+        client_secret: TWITCH_CLIENT_SECRET,
+        grant_type: "client_credentials",
+      },
     }
-  });
+  );
+  twitchToken = r.data.access_token;
+  console.log("✅ Twitch token получен");
+}
 
-  saveStreamers(current);
-  res.json({ ok: true, streamers: current });
+// ===== CHECK STREAM =====
+async function isLive(user) {
+  const r = await axios.get(
+    `https://api.twitch.tv/helix/streams?user_login=${user}`,
+    {
+      headers: {
+        "Client-ID": TWITCH_CLIENT_ID,
+        Authorization: `Bearer ${twitchToken}`,
+      },
+    }
+  );
+  return r.data.data.length > 0;
+}
+
+// ===== TELEGRAM =====
+async function sendTelegram(text) {
+  await axios.post(
+    `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+    {
+      chat_id: TELEGRAM_CHAT_ID,
+      text,
+    }
+  );
+}
+
+// ===== MAIN LOOP =====
+const liveStatus = {};
+STREAMERS.forEach(s => (liveStatus[s] = false));
+
+async function loop() {
+  try {
+    for (const s of STREAMERS) {
+      const live = await isLive(s);
+      if (live && !liveStatus[s]) {
+        await sendTelegram(`🔴 ${s} только что начал стрим!`);
+      }
+      liveStatus[s] = live;
+    }
+  } catch (e) {
+    console.error("❌ Loop error:", e.message);
+  }
+  setTimeout(loop, CHECK_INTERVAL);
+}
+
+// ===== WEB (для Railway healthcheck) =====
+app.get("/", (req, res) => {
+  res.send("🚀 Twitch → Telegram bot работает");
 });
 
-// ====== start ======
-app.listen(PORT, () => {
-  console.log("Server started on port", PORT);
+// ===== START =====
+app.listen(PORT, "0.0.0.0", async () => {
+  console.log("🚀 Server started on port", PORT);
+  await getTwitchToken();
+  await sendTelegram("✅ Бот запущен и работает");
+  loop();
 });
